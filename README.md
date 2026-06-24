@@ -1,9 +1,8 @@
 # @causari/mcp-server
 
-> **Wikipedia for AI agents.** A Model Context Protocol server that gives Claude Code, Cursor, Windsurf — or any MCP-compatible AI agent — structured causal knowledge: 100+ events, 130+ causal links with confidence scores, and 8 insight patterns across computing history.
+> **Wikipedia for AI agents.** A Model Context Protocol server that gives Claude Code, Cursor, Windsurf — or any MCP-compatible AI agent — structured causal knowledge: **245 events, 457 causal links** with confidence scores, and 8 insight patterns across 9 verticals of technology history.
 
-<!-- TODO: Replace with 10s hero GIF showing Claude Code calling causal_chain("kubernetes") -->
-<!-- ![Causari MCP in action](assets/hero.gif) -->
+Ask **why** a technology, architecture, or decision emerged — Causari answers from a sourced graph of cause-and-effect across computing history, delivered straight into your agent's context. It's a knowledge base of the world's technology causality, not a logger of your agent's actions.
 
 ### Install in 60 seconds
 
@@ -80,7 +79,23 @@ In Claude Code these surface as `mcp__causari__causal_chain` (and similar), depe
 
 Add to `.mcp.json` (Claude Code project or `~/.claude/mcp.json` global) or `~/.cursor/mcp.json` (Cursor).
 
-### Option 2 — From source
+### Option 2 — Hosted endpoint (no install)
+
+Point directly to the hosted Cloudflare Worker — nothing to install or run locally:
+
+```json
+{
+  "mcpServers": {
+    "causari": {
+      "url": "https://causari-mcp.huydv.workers.dev/mcp"
+    }
+  }
+}
+```
+
+Works with any MCP client that supports HTTP transport (Claude Desktop, Cursor, Windsurf, etc.).
+
+### Option 3 — From source
 
 ```bash
 git clone https://github.com/causari/mcp-server
@@ -148,26 +163,26 @@ Matches **Information Democratization Cycle** (predictive value 0.85), with exem
 
 This is honest reporting, not marketing copy.
 
-**Current data depth (as of 2026-05-15):**
+**Current data depth (as of 2026-05-18):**
 
-- **100 events** curated (35 civilizational, 15 AI history, 50 computing & software engineering)
-- **132 causal links** with evidence text + confidence scores
-- **8 insight patterns** (including 3 tech-specific: Abstraction Layer Migration, Standardization Cycle, Open vs Proprietary Substrate)
+- **245 events** across 9 verticals: AI history, computing, web ecosystem, cloud/devops, databases, AI/ML tooling, security, mobile, and civilizational foundations
+- **457 causal links** with evidence text + confidence scores calibrated per-link
+- **8 insight patterns** (Abstraction Layer Migration, Standardization Cycle, Open vs Proprietary, Information Democratization Cycle, and more)
 
-**Primary vertical: History of Computing & Software Engineering.** Queries like `causal_chain("docker")`, `causal_chain("kubernetes")`, or `historical_resonance("microservices vs monolith")` return meaningful causal context with evidence chains.
+**Strong coverage:** Queries like `causal_chain("docker")`, `causal_chain("reactjs")`, `causal_chain("jwt")`, or `historical_resonance("microservices vs monolith")` return dense causal chains with evidence. Dev-term hit rate validated at 10/10.
 
 **Honest limitations:**
 
 - Confidence scores are curator estimates, not statistical posteriors.
 - `predict_scenarios` is pattern-matching over the historical record, not probabilistic forecasting. Treat output as structured hypotheses, not predictions.
-- Coverage outside computing/AI history is thinner. We're expanding verticals based on user demand.
+- Coverage outside the 9 current verticals is thinner. See [causari/causari-data](https://github.com/causari/causari-data) to request or contribute new verticals.
 
-**Deferred per ADR-0004:**
+**Roadmap:**
 
-- AI inference pipeline (Phase 2) — LLM-assisted causal link extraction at scale
-- D1 backend + HTTP transport (Phase 3) — hosted MCP endpoint at `mcp.causari.ai`
-- Org/Personal scope ingestion (Phase 4) — user-curated private CKG
-- Embedding-based resonance (Phase 2) — replace lexical match with semantic similarity
+- ✅ Hosted HTTP endpoint (`causari-mcp.huydv.workers.dev`) — Cloudflare Worker, stateless
+- 🔜 API key + rate limiting — Pro tier
+- 🔜 Embedding-based resonance — replace lexical match with semantic similarity
+- 🔜 Org/Personal scope — user-curated private CKG via enterprise tier
 
 ---
 
@@ -185,27 +200,32 @@ Expected: `PASS: 10/10` with a sample causal chain printed. The smoke covers too
 ## Architecture
 
 ```
-┌────────────────────────┐
-│  AI Agent (Claude Code,│
-│   Cursor, Windsurf)    │
-└──────┬─────────────────┘
-       │ MCP protocol (stdio)
-       ▼
-┌────────────────────────┐
-│  @causari/mcp-server   │
-│  - tools.ts            │  ← 5 tool definitions, output shaping
-│  - server.ts           │  ← Server + request handlers
-│  - cli.ts              │  ← stdio transport entry
-└──────┬─────────────────┘
-       │ imports
-       ▼
-┌────────────────────────┐
-│  @causari/ckg          │
-│  - types               │  ← schema (Event, CausalLink, Insight)
-│  - store               │  ← in-memory + adjacency indexes
-│  - query               │  ← BFS, search, resonance, scenarios
-│  - seed                │  ← curated events + links (open data, ADR-0011)
-└────────────────────────┘
+┌───────────────────────────────────────────┐
+│  AI Agent (Claude Code, Cursor, Windsurf) │
+└──────┬──────────────────┬─────────────────┘
+       │ stdio (local)    │ HTTP/SSE (hosted)
+       ▼                  ▼
+┌──────────────┐  ┌─────────────────────────┐
+│  cli.ts      │  │  worker.ts              │
+│  (npx local) │  │  (Cloudflare Worker)    │
+└──────┬───────┘  └────────────┬────────────┘
+       │                       │
+       └──────────┬────────────┘
+                  ▼
+┌──────────────────────────────┐
+│  server.ts / tools.ts        │
+│  - 5 tool definitions        │  ← output shaping, token-efficiency
+│  - MCP request handlers      │
+└──────────────┬───────────────┘
+               │ imports
+               ▼
+┌──────────────────────────────┐
+│  @causari/ckg                │
+│  - types                     │  ← schema (Event, CausalLink, Insight)
+│  - store                     │  ← in-memory + adjacency indexes
+│  - query                     │  ← BFS, search, resonance, scenarios
+│  - seed (9 verticals)        │  ← 245 events, 457 links, 8 patterns
+└──────────────────────────────┘
 ```
 
 Token-efficiency note: tool outputs drop redundant fields and inline `relationship` + `evidence` so the LLM doesn't have to re-query for context. Confidence + provenance is surfaced so the model can communicate uncertainty honestly to the user.
@@ -222,8 +242,10 @@ For server code contributions, file issues or PRs here.
 
 ## License
 
-Server code: MIT (this package).
-Dataset (when published separately): CC-BY-SA 4.0.
+This package is **dual-licensed** (see `NOTICE`):
+
+- **Server code** — MIT (see `LICENSE`).
+- **Bundled Causal Knowledge Graph data** (events, causal links, insight patterns compiled into `dist/`) — **CC-BY-SA 4.0**. Reuse of the data — including extracting it from this package — requires attribution and share-alike, even though it ships inside this MIT-licensed package. The MIT code license does not relicense the data. Source dataset: [`causari/causari-data`](https://github.com/causari/causari-data).
 
 ---
 
